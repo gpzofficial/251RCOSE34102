@@ -1,0 +1,12 @@
+# .gitignore
+# Written by gpzofficial
+
+# Exclude object files
+*.o
+
+# Exclude executable files
+main
+
+# Exclude .DS_Store
+.DS_Store
+
