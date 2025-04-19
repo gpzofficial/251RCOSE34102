@@ -220,6 +220,8 @@ int DestroyProcess(g_proc* proc)
 
 g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue)
 {
+    
+    
     if(proc == NULL)
     {
         printf("\n");
@@ -340,7 +342,7 @@ int _SRTF_Proc(g_proc** ready_queue, g_proc* current_proc)
     {
         if(min_cpu_burst_time > ready_queue[i] -> cpu_burst_time - ready_queue[i] -> _cpu_burst_timer && current_time >= ready_queue[i] -> arr_time)
         {
-            min_cpu_burst_time = ready_queue[i] -> cpu_burst_time - ready_queue[i] -> _cpu_burst_timer && current_time;
+            min_cpu_burst_time = ready_queue[i] -> cpu_burst_time - ready_queue[i] -> _cpu_burst_timer;
             index_to_return = i;
         }
         
@@ -397,23 +399,40 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
     
     if(current_proc != NULL)
     {
-        printf("%2d TIME -> \tPROCESS %d(%2d/%2d)", current_time, current_proc -> pid, current_proc -> _cpu_burst_timer, current_proc -> cpu_burst_time);
+        current_proc -> _cpu_burst_timer += 1;
+    }
+    
+    if(current_proc != NULL)
+    {
+        printf("%2d TIME -> \tPROCESS %d ", current_time, current_proc -> pid);
+        for(int i = 0; i < current_proc -> _cpu_burst_timer; i++)
+        {
+            printf("■");
+        }
+        for(int i = 0; i < current_proc -> cpu_burst_time - current_proc -> _cpu_burst_timer; i++)
+        {
+            printf("□");
+        }
     }
     else
     {
         printf("%2d TIME -> \tNO PROCESS IS ON CPU", current_time);
     }
     
-    current_time += 1;
-    
     EjectWaitingQueue(waiting_queue, ready_queue);
-    
     current_proc = ControlCurrentProcess(type, current_proc, waiting_queue);
+    
+    
+    
+    
     
     
     
 
     g_proc* target = EjectReadyQueue(ready_queue, GetNextProcess(type, ready_queue, current_proc));
+    
+    
+    
     if(target == NULL)
     {
         if(current_proc == NULL && waiting_queue_position <= 0 && ready_queue_position <= 0)
@@ -435,10 +454,9 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
         current_proc = target;
     }
     
-    if(current_proc != NULL)
-    {
-        current_proc -> _cpu_burst_timer += 1;
-    }
+    
+    
+    
     
     if(waiting_queue[0] != NULL)
     {
@@ -466,6 +484,11 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
     }
     
     *current_proc_point = current_proc;
+    
+    
+    
+    current_time += 1;
+    
     
     return 0;
     
