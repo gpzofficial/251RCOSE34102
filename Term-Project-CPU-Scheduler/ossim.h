@@ -7,8 +7,11 @@
 #include <stdlib.h>
 #include <limits.h>
 
+int ready_queue_position;
 int waiting_queue_position;
+int process_count;
 int current_time;
+
 
 enum schedule_type_e
 {
@@ -39,37 +42,38 @@ struct g_proc_s
 typedef struct g_proc_s g_proc;
 typedef enum schedule_type_e s_type;
 
-(g_proc *)* CreateReadyQueue();
-(g_proc *)* CreateWaitingQueue();
+g_proc** CreateReadyQueue();
+g_proc** CreateWaitingQueue();
 
-int InsertReadyQueue((g_proc *)* ready_queue, g_proc* proc);
-int InsertWaitingQueue((g_proc *)* waiting_queue, g_proc* proc);
+int InsertReadyQueue(g_proc** ready_queue, g_proc* proc);
+int InsertWaitingQueue(g_proc** waiting_queue, g_proc* proc);
 
-g_proc* EjectReadyQueue((g_proc *)* ready_queue, int index);
-int EjectWaitingQueue((g_proc *)* waiting_queue, (g_proc *)* ready_queue);
+g_proc* EjectReadyQueue(g_proc** ready_queue, int index);
+int EjectWaitingQueue(g_proc** waiting_queue, g_proc** ready_queue);
 
-void DestoryReadyQueue((g_proc *)* ready_queue);
-void DestoryWaitingQueue((g_proc *)* ready_queue);
+int DestoryReadyQueue(g_proc** ready_queue);
+int DestoryWaitingQueue(g_proc** waiting_queue);
 
 
 
-g_proc* ControlCurrentProcess(s_type type, g_proc* proc, (g_proc *)* waiting_queue);
+g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue);
 
-g_proc* CreateProcess(int pid, int arr_time, int cpu_burst_time, int io_burst_time, int io_req_time, int priority);
+int PrintProcess(g_proc* proc);
+g_proc* CreateProcess(int arr_time, int cpu_burst_time, int io_burst_time, int io_req_time, int priority);
 int DestroyProcess(g_proc* proc);
 
-int _FCFS_Proc((g_proc *)* ready_queue, g_proc* current_proc);
-int _SJF_Proc((g_proc *)* ready_queue, g_proc* current_proc);
-int _SRTF_Proc((g_proc *)* ready_queue, g_proc* current_proc);
-int _RR_Proc((g_proc *)* ready_queue, g_proc* current_proc);
-int _NPM_PRIORITY_Proc((g_proc *)* ready_queue, g_proc* current_proc);
-int _PM_PRIORITY_Proc((g_proc *)* ready_queue, g_proc* current_proc);
+int _FCFS_Proc(g_proc** ready_queue, g_proc* current_proc);
+int _SJF_Proc(g_proc** ready_queue, g_proc* current_proc);
+int _SRTF_Proc(g_proc** ready_queue, g_proc* current_proc);
+int _RR_Proc(g_proc** ready_queue, g_proc* current_proc);
+int _NPM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc);
+int _PM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc);
 
-int GetNextProcess(s_type type, (g_proc *)* ready_queue, g_proc* current_proc);
+int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc);
 
 
 
-int Step(s_type type, (g_proc *)* ready_queue, (g_proc *)* waiting_queue, g_proc* current_proc);
+int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point);
 
 int Init();
 
