@@ -7,10 +7,6 @@
 #include <stdlib.h>
 #include <limits.h>
 
-int ready_queue_position;
-int waiting_queue_position;
-int process_count;
-int current_time;
 
 
 enum schedule_type_e
@@ -31,15 +27,23 @@ struct g_proc_s
 	int io_burst_time;
 	int io_req_time;
 	int priority;
-    
+
     int _cpu_burst_timer;
     int _io_burst_timer;
     int _waiting_time;
-    
+
     // Turnaround Time = _waiting_time + cpu_burst_time + io_burst_time
 };
 
+struct g_gantt_s
+{
+    int pid;
+    int start_time;
+    int end_time;
+};
+
 typedef struct g_proc_s g_proc;
+typedef struct g_gantt_s g_gantt;
 typedef enum schedule_type_e s_type;
 
 g_proc** CreateReadyQueue();
@@ -72,8 +76,10 @@ int _PM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc);
 int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc);
 
 
+int Interact(g_proc** ready_queue);
+int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt* gantt);
 
-int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point);
+int ProcessGantt(g_gantt* gantt);
 
 int Init();
 
