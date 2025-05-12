@@ -24,9 +24,12 @@ struct g_proc_s
 	int pid;
 	int arr_time;
 	int cpu_burst_time;
-	int io_burst_time;
-	int io_req_time;
+	int *io_burst_time;
+	int *io_req_time;
 	int priority;
+
+	int io_count;
+	int io_curr;
 
     int _cpu_burst_timer;
     int _io_burst_timer;
@@ -46,6 +49,9 @@ typedef struct g_proc_s g_proc;
 typedef struct g_gantt_s g_gantt;
 typedef enum schedule_type_e s_type;
 
+g_proc** CreateProcessList();
+int DestroyProcessList(g_proc** process_list);
+
 g_proc** CreateReadyQueue();
 g_proc** CreateWaitingQueue();
 
@@ -60,11 +66,11 @@ int DestoryWaitingQueue(g_proc** waiting_queue);
 
 
 
-g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue);
+g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue, g_proc** ready_queue);
 
 int PrintProcess(g_proc* proc);
-g_proc* CreateProcess(int arr_time, int cpu_burst_time, int io_burst_time, int io_req_time, int priority);
-int DestroyProcess(g_proc* proc);
+g_proc* CreateProcess(g_proc** process_list, int arr_time, int cpu_burst_time, int priority);
+int DestroyProcess(g_proc* proc, g_proc** process_list);
 
 int _FCFS_Proc(g_proc** ready_queue, g_proc* current_proc);
 int _SJF_Proc(g_proc** ready_queue, g_proc* current_proc);
@@ -76,11 +82,15 @@ int _PM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc);
 int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc);
 
 
-int Interact(g_proc** ready_queue);
+int Interact(g_proc** ready_queue, g_proc** process_list);
 int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt* gantt);
 
 int ProcessGantt(g_gantt* gantt);
 
+
+
 int Init();
+
+int Menu();
 
 #endif
