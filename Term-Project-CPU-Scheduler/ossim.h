@@ -2,6 +2,7 @@
 #define _OSSIM_H
 
 #define MAX_QUEUE_SIZE 1000
+#define TIMESTAMP_LIMIT 60
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,11 +44,20 @@ struct g_gantt_s
     int pid;
     int start_time;
     int end_time;
+    int end_reason;
+};
+
+struct g_gantt_container_s
+{
+	enum schedule_type_e type;
+	struct g_gantt_s* gantt_chart;
+	int gantt_count;
 };
 
 typedef struct g_proc_s g_proc;
 typedef struct g_gantt_s g_gantt;
 typedef enum schedule_type_e s_type;
+typedef struct g_gantt_container_s g_gantt_container;
 
 g_proc** CreateProcessList();
 int DestroyProcessList(g_proc** process_list);
@@ -83,10 +93,11 @@ int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc);
 
 
 int Interact(g_proc** ready_queue, g_proc** process_list);
-int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt* gantt);
+int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt);
 
-int ProcessGantt(g_gantt* gantt);
+int ProcessGantt(g_gantt_container* gantt);
 
+g_proc* GenerateRandomProcess(g_proc** process_list);
 
 
 int Init();

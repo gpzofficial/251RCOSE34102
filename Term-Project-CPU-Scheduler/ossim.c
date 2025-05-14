@@ -1,13 +1,17 @@
+#include <_stdlib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <time.h>
 #include "ossim.h"
 
 int ready_queue_position;
 int waiting_queue_position;
 int process_count;
 int current_time;
-int gantt_count;
+int gantt_list_count;
+
+int exit_reason;
 
 int rr_timer;
 int rr_tq;
@@ -209,7 +213,7 @@ int PrintProcess(g_proc* proc)
     printf("\tIO LIST: ");
     for(int i = 0; i < proc -> io_count; i++)
     {
-    	printf("[%d for %d] ", proc -> io_req_time[i], proc -> io_burst_time[i]);
+    	printf("[at %d bursts %d] ", proc -> io_req_time[i], proc -> io_burst_time[i]);
     }
 
     printf("\n");
@@ -232,7 +236,7 @@ g_proc* AddIOToProcess(g_proc* proc, int io_burst_time, int io_req_time)
 	if(io_req_time <= proc -> _cpu_burst_timer) return proc;
 	if(proc -> io_count >= MAX_QUEUE_SIZE) return proc;
 
-	printf("IOC: %d\n", proc -> io_count);
+	//printf("IOC: %d\n", proc -> io_count);
 
 	proc -> io_burst_time[proc -> io_count] = io_burst_time;
 	proc -> io_req_time[proc -> io_count] = io_req_time;
@@ -291,6 +295,7 @@ int DestroyProcess(g_proc* proc, g_proc** process_list)
 g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue, g_proc** ready_queue)
 {
 
+	///printf("rrt: %d\n", rr_timer);
 
     if(proc == NULL)
     {
@@ -298,28 +303,48 @@ g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue,
         return NULL;
     }
 
+    rr_timer++;
+
     if(proc -> cpu_burst_time <= proc -> _cpu_burst_timer)
     {
         // printf("\t -> TERMINATED(WAITING: %2d)\n", proc -> _waiting_time);
-
+        exit_reason = 0;
+        rr_timer = 0;
         return NULL;
     }
     else if(proc -> io_curr < proc -> io_count)
     {
 	    if(proc -> io_req_time[proc -> io_curr] == proc -> _cpu_burst_timer)
 		{
+			//printf("IO\n");
+			rr_timer = 0;
 	        InsertWaitingQueue(waiting_queue, proc);
+			exit_reason = 1;
 	        // printf("\t -> IO WAIT\n");
 	        return NULL;
     	}
+    	if(type == RR)
+	     {
+	     	if(rr_timer >= rr_tq) {
+								exit_reason = 2;
+	      		rr_timer = 0;
+	        		//printf("HIT!\n");
+	    			InsertReadyQueue(ready_queue, proc);
+	       		return NULL;
+	     	}
+	     }
     }
     else if(type == RR)
-    {
-    	if(rr_timer >= rr_tq) {
-   			InsertReadyQueue(ready_queue, proc);
-      		return NULL;
-    	}
-    }
+	     {
+	     	if(rr_timer >= rr_tq) {
+								exit_reason = 2;
+	      		rr_timer = 0;
+	        		//printf("HIT!\n");
+	    			InsertReadyQueue(ready_queue, proc);
+	       		return NULL;
+	     	}
+	     }
+
     else
     {
        // printf("\n");
@@ -461,6 +486,43 @@ int _RR_Proc(g_proc** ready_queue, g_proc* current_proc)
             index_to_return = i;
         }
 
+
+
+        if(i + 1 >= MAX_QUEUE_SIZE)
+        {
+            break;
+        }
+    }
+
+
+    return index_to_return;
+}
+int _NPM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
+{
+	int pos = 0;
+
+    g_proc* selection = current_proc;
+
+    if(current_proc == NULL)
+    {
+        // PASS
+    }
+    else if(selection -> _cpu_burst_timer < selection -> cpu_burst_time)
+    {
+        return -1;
+    }
+
+    int min_priority = INT_MAX;
+    int index_to_return = -1;
+
+    for(int i = 0; ready_queue[i] != NULL; i++)
+    {
+        if(min_priority > ready_queue[i] -> priority)
+        {
+            min_priority = ready_queue[i] -> priority;
+            index_to_return = i;
+        }
+
         if(i + 1 >= MAX_QUEUE_SIZE)
         {
             break;
@@ -468,10 +530,6 @@ int _RR_Proc(g_proc** ready_queue, g_proc* current_proc)
     }
 
     return index_to_return;
-}
-int _NPM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
-{
-    return 0;
 }
 int _PM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
 {
@@ -491,6 +549,8 @@ int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc)
             return _SRTF_Proc(ready_queue, current_proc);
         case RR:
         	return _RR_Proc(ready_queue, current_proc);
+        case NPM_PRIORITY:
+        	return _NPM_PRIORITY_Proc(ready_queue, current_proc);
         default:
             return -1;
     }
@@ -549,13 +609,10 @@ int Interact(g_proc** ready_queue, g_proc** process_list)
                         if(cursor == 3)
                         {
                         	proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
-                         	printf("%d + %d + %d\n", arr_time, cpu_burst_time, priority);
                         }
                         else if(cursor >= 4 && cursor % 2 != 0)
                         {
                         	proc = AddIOToProcess(proc, io_burst_time, io_req_time);
-
-                         	printf("I: %d + %d\n", io_burst_time, io_req_time);
                          	io_burst_time = 0;
                          	io_req_time = 0;
                         }
@@ -665,10 +722,10 @@ int Interact(g_proc** ready_queue, g_proc** process_list)
     return 0;
 }
 
-int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt* gantt)
+int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt)
 {
-
     /*
+
 
      *** RETURN VALUES ***
      0 = STEP PROCEEDEED
@@ -677,38 +734,50 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
      -1 = SOMETHING'S WRONG
 
      */
+
+    int changed = 0;
+    if(current_time == 0) changed = 1; // Initial setting for gantt chart to save from the very first segment
     g_proc* current_proc = *current_proc_point;
 
     if(current_proc != NULL)
     {
         current_proc -> _cpu_burst_timer += 1;
     }
-
+/*
     if(current_proc != NULL)
     {
-       // printf("%2d TIME -> \tPROCESS %d ", current_time, current_proc -> pid);
+        printf("%2d TIME -> \tPROCESS %d ", current_time, current_proc -> pid);
         for(int i = 0; i < current_proc -> _cpu_burst_timer; i++)
         {
-           // printf("■");
+            printf("■");
         }
         for(int i = 0; i < current_proc -> cpu_burst_time - current_proc -> _cpu_burst_timer; i++)
         {
-           // printf("□");
+            printf("□");
         }
     }
     else
     {
-       // printf("%2d TIME -> \tNO PROCESS IS ON CPU", current_time);
+        printf("%2d TIME -> \tNO PROCESS IS ON CPU", current_time);
     }
+    printf("\n");*/
     EjectWaitingQueue(waiting_queue, ready_queue);
+
     current_proc = ControlCurrentProcess(type, current_proc, waiting_queue, ready_queue);
+
+    if(*current_proc_point != current_proc) changed = 1;
+
     g_proc* target = EjectReadyQueue(ready_queue, GetNextProcess(type, ready_queue, current_proc));
+
+    if(*current_proc_point != current_proc) changed = 1;
+
+
     if(target == NULL)
     {
         if(current_proc == NULL && waiting_queue_position <= 0 && ready_queue_position <= 0)
         {
             //printf("Debug: current process is NULL(%d, %d)\n", waiting_queue_position, ready_queue_position);
-            gantt[gantt_count - 1].end_time = current_time;
+            gantt -> gantt_chart[gantt -> gantt_count - 1].end_time = current_time;
             return 1;
 
             // Probably return 1 to terminate the program
@@ -724,6 +793,8 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
         }
         current_proc = target;
     }
+
+    if(*current_proc_point != current_proc) changed = 1;
 
 
 
@@ -754,19 +825,21 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
         }
     }
 
-    if(*current_proc_point != current_proc) {
-        if(gantt_count != 0) {
-            gantt[gantt_count - 1].end_time = current_time;
+
+    if(changed) {
+        if(gantt -> gantt_count != 0) {
+            gantt -> gantt_chart[gantt -> gantt_count - 1].end_time = current_time;
+            gantt -> gantt_chart[gantt -> gantt_count - 1].end_reason = exit_reason;
         }
-        gantt_count++;
+        gantt -> gantt_count++;
         if(current_proc != NULL) {
-            gantt[gantt_count - 1].pid = current_proc -> pid;
-            gantt[gantt_count - 1].start_time = current_time;
+            gantt -> gantt_chart[gantt -> gantt_count - 1].pid = current_proc -> pid;
+            gantt -> gantt_chart[gantt -> gantt_count - 1].start_time = current_time;
         }
         else
         {
-            gantt[gantt_count - 1].pid = -1;
-            gantt[gantt_count - 1].start_time = current_time;
+            gantt -> gantt_chart[gantt -> gantt_count - 1].pid = -1;
+            gantt -> gantt_chart[gantt -> gantt_count - 1].start_time = current_time;
         }
     }
 
@@ -780,15 +853,40 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
 
 }
 
-int ProcessGantt(g_gantt* gantt)
+int ProcessGantt(g_gantt_container* gantt)
 {
     printf("Schedule Result:\n");
-    for(int i = 0; i < gantt_count; i++) {
-        if(gantt[i].pid == -1) {
-            printf("[%03d--NO_PROCESS--%03d] | ", gantt[i].start_time, gantt[i].end_time);
+    printf("\tSchedule Type: ");
+    switch(gantt -> type)
+    {
+    	case FCFS:
+     		printf("FCFS\n");
+       		break;
+       	case SJF:
+        	printf("SJF\n");
+         	break;
+        case SRTF:
+        	printf("SRTF\n");
+         	break;
+        case RR:
+        	printf("RR\n");
+         	break;
+        case NPM_PRIORITY:
+        	printf("NPM_PRIORITY\n");
+         	break;
+        case PM_PRIORITY:
+        	printf("PM_PRIORITY\n");
+         	break;
+        default:
+        	break;
+
+    }
+    for(int i = 0; i < gantt -> gantt_count; i++) {
+        if(gantt -> gantt_chart[i].pid == -1) {
+            printf("[%03d--  •  --%03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].end_time);
         }
         else {
-            printf("[%03d-- <- PR-%02d ->--%03d] | ", gantt[i].start_time, gantt[i].pid, gantt[i].end_time);
+            printf("[%03d--< P-%02d >--%s %03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : "RR"), gantt -> gantt_chart[i].end_time);
         }
     }
     printf("\n");
@@ -796,20 +894,89 @@ int ProcessGantt(g_gantt* gantt)
     return 0;
 }
 
+g_proc* GenerateRandomProcess(g_proc** process_list)
+{
+	int arr_time;
+	int cpu_burst_time;
+	int priority;
+	int io_count;
+	while(1)
+	{
+		arr_time = rand() % TIMESTAMP_LIMIT;
+		cpu_burst_time = rand() % TIMESTAMP_LIMIT;
+		priority = rand() % TIMESTAMP_LIMIT;
+		io_count = rand() % TIMESTAMP_LIMIT;
 
+		if(cpu_burst_time > 0) {
+			if(arr_time < cpu_burst_time)
+				{break;}
+		}
+
+	}
+
+	g_proc* proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
+
+	int io_burst_time;
+	int io_req_time;
+
+	int prev_req_time = 0;
+
+	for(int i = 0; i < io_count; i++) {
+		while(1)
+		{
+			io_burst_time = rand() % (TIMESTAMP_LIMIT / 3);
+			io_req_time = rand() % (TIMESTAMP_LIMIT * 2);
+
+			if(io_req_time > arr_time && io_req_time < cpu_burst_time) {
+				if(io_burst_time > 0)
+					{
+						if(prev_req_time < io_req_time)
+						{
+							prev_req_time = io_req_time;
+							proc = AddIOToProcess(proc, io_burst_time, io_req_time);
+			break;
+						}
+						else {
+							if(prev_req_time >= cpu_burst_time - 1) {
+								break;
+							}
+						}
+
+				}
+			}
+		}
+
+
+
+
+	}
+
+
+	return proc;
+}
 
 int Init()
 {
     process_count = 0;
     current_time = 0;
-    gantt_count = 0;
+    gantt_list_count = 0;
 
     rr_timer = 0;
     rr_tq = 0;
 
+    srand((unsigned int)time(NULL));
 
 
     return 0;
+}
+
+int Reset()
+{
+	exit_reason = 0;
+	current_time = 0;
+    rr_timer = 0;
+
+	return 0;
 }
 
 int Menu()
@@ -818,27 +985,37 @@ int Menu()
     g_proc** process_list = CreateProcessList();
     g_proc** ready_queue = CreateReadyQueue();
     g_proc** waiting_queue = CreateWaitingQueue();
-    g_gantt* gantt_chart = (g_gantt *) malloc(sizeof(g_gantt) * MAX_QUEUE_SIZE);
+
+    s_type type = FCFS;
+
+
+    g_gantt_container** gantt_list = (g_gantt_container **) malloc(sizeof(g_gantt_container *) * 24);
 
     g_proc** current_proc_point = (g_proc **) malloc(sizeof(g_proc *));
 
     *current_proc_point = NULL;
+
+    Init();
 /*
-    CreateProcess(process_list, 0, 6, 0, -1, 0);
-    CreateProcess(process_list, 0, 8, 0, -1, 0);
-    CreateProcess(process_list, 0, 7, 0, -1, 0);
-    CreateProcess(process_list, 0, 3, 0, -1, 0);
-*/
+    CreateProcess(process_list, 0, 6, 0);
+    CreateProcess(process_list, 0, 8, 0);
+    CreateProcess(process_list, 0, 7, 0);
+    CreateProcess(process_list, 0, 3, 0);
+ */
 
     int bruh = 0;
 
-    Init();
+
 
     printf("[ CPU Schedule Simulator ]\n\n");
 
     while(1)
     {
+     	interaction_mode = 0;
 
+      	Reset();
+       	ready_queue_position = 0;
+        *current_proc_point = NULL;
 
         char interaction_input[1024] = "";
         printf("(menu) ");
@@ -852,7 +1029,14 @@ int Menu()
 
         if(interaction_input[0] == 's' && interaction_input[1] == 't')
         {
+	       	g_gantt* gantt_chart = (g_gantt *) malloc(sizeof(g_gantt) * MAX_QUEUE_SIZE);
+	       	g_gantt_container* g_container = (g_gantt_container *) malloc(sizeof(g_gantt_container));
+	       	g_container -> gantt_chart = gantt_chart;
+        	g_container -> gantt_count = 0;
+        	g_container -> type = type;
 	       	int pos = 1;
+
+
 			while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
 	        while(interaction_input[pos] != '\0') {
 	            switch (interaction_input[pos]) {
@@ -883,21 +1067,33 @@ int Menu()
 				printf("\tErr: Invalid syntax for the command.\n");
 			}
 			else {
+				for(int i = 0; i < process_count; i++)
+				{
+					process_list[i] -> io_curr = 0;
+					process_list[i] -> _io_burst_timer = 0;
+					process_list[i] -> _cpu_burst_timer = 0;
+					process_list[i] -> _waiting_time = 0;
+					InsertReadyQueue(ready_queue, process_list[i]);
+				}
+
 		        do {
 		            if(bruh != 1 && interaction_mode == 1){ bruh = Interact(ready_queue, process_list);}
 					if(bruh == -1){ break;}
 		        }
-		        while(Step(FCFS, ready_queue, waiting_queue, current_proc_point, gantt_chart) == 0);
+		        while(Step(type, ready_queue, waiting_queue, current_proc_point, g_container) == 0);
 
 				int prev_proc = -1;
 
-			    if(bruh != -1) ProcessGantt(gantt_chart); }
+			    if(bruh != -1) ProcessGantt(g_container); }
+				gantt_list[gantt_list_count] = g_container;
+				gantt_list_count++;
 
 			bruh = 0;
         }
         else if(interaction_input[0] == 's' && interaction_input[1] == 'e')
         {
         	int pos = 1;
+         	int tq = 0;
 			while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
 
 	        while(interaction_input[pos] != '\0')
@@ -907,17 +1103,75 @@ int Menu()
 	                    inputbefore = interaction_input[pos];
 	                    pos++;
 	                    break;
-					case '-':
-						if(interaction_input[pos + 1] == 'n') {
-							interaction_mode = 0;
+					case 's':
+						if(interaction_input[pos + 1] == 'j') {
+							printf("\t\tschedule type set to SJF\n");
+							type = SJF;
+							while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
 						}
-						else if(interaction_input[pos + 1] == 'i') {
-							interaction_mode = 1;
-							printf("\t\tinteraction !\n");
+						else if(interaction_input[pos + 1] == 'r') {
+							printf("\t\tschedule type set to SRTF\n");
+							type = SRTF;
 						}
 						pos += 2;
+						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
 						break;
+					case 'f':
+						printf("\t\tschedule type set to FCFS\n");
+							type = FCFS;
+						pos++;
+						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+						break;
+					case 'p':
+						printf("\t\tschedule type set to PREEMPTIVE PRIORITY\n");
+							type = PM_PRIORITY;
+						pos++;
+						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+						break;
+					case 'n':
+						printf("\t\tschedule type set to NON-PREEMPTIVE PRIORITY\n");
+							type = NPM_PRIORITY;
+						pos++;
+						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+						break;
+					case 'r':
+						printf("\t\tschedule type set to ROUND ROBIN\n");
+							type = RR;
+
+						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+						printf("deb: 1\n");
+						pos++;
+						switch(interaction_input[pos])
+						{
+							case ' ':
+					           inputbefore = interaction_input[pos];
+					           pos++;
+					           break;
+							case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+	                        	tq *= 10;
+								printf("deb: 2\n");
+		                        if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+	                            	tq += (interaction_input[pos] - 48);
+								printf("deb: 3\n");
+		                        } break;
+						}
+
+						if(tq <= 0) tq = 1;
+
+
+
+						rr_tq = tq;
+						printf("\t\t\ttime quantum = %d\n", rr_tq);
+						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+
+
+
+						break;
+					case 0:
+						break;
+
 	                default:
+						printf("e?\n");
 	                    pos = -1;
 	                    break;
 	                }
@@ -932,7 +1186,32 @@ int Menu()
         }
         else if(interaction_input[0] == 'g')
         {
-        	continue;
+        	int pos = 1;
+         	int proc_count = 0;
+        	while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+
+        	while(interaction_input[pos] != '\0')
+	        {
+	            switch (interaction_input[pos]) {
+	                case ' ':
+	                    inputbefore = interaction_input[pos];
+	                    pos++;
+	                    break;
+					case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+                        proc_count *= 10;
+                        if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+                            proc_count += (interaction_input[pos] - 48);
+                        }
+	                default:
+	                    pos = -1;
+	                    break;
+	                }
+
+	            if(pos == -1) break;
+	        }
+			for(int i = 0; i < proc_count; i++) {
+				GenerateRandomProcess(process_list);
+			}
         }
         else if(interaction_input[0] == 'c') {
         	continue;
