@@ -533,7 +533,40 @@ int _NPM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
 }
 int _PM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
 {
-    return 0;
+	int pos = 0;
+
+    g_proc* selection = current_proc;
+
+
+
+    int min_pr;
+
+    if(current_proc == NULL)
+    {
+        min_pr = INT_MAX;
+    }
+    else
+    {
+        min_pr = current_proc -> priority;
+    }
+
+    int index_to_return = -1;
+
+    for(int i = 0; ready_queue[i] != NULL; i++)
+    {
+        if(min_pr > ready_queue[i] -> priority && current_time >= ready_queue[i] -> arr_time)
+        {
+            min_pr = ready_queue[i] -> priority;
+            index_to_return = i;
+        }
+
+        if(i + 1 >= MAX_QUEUE_SIZE)
+        {
+            break;
+        }
+    }
+
+    return index_to_return;
 }
 
 
@@ -551,6 +584,8 @@ int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc)
         	return _RR_Proc(ready_queue, current_proc);
         case NPM_PRIORITY:
         	return _NPM_PRIORITY_Proc(ready_queue, current_proc);
+        case PM_PRIORITY:
+        	return _PM_PRIORITY_Proc(ready_queue, current_proc);
         default:
             return -1;
     }
@@ -790,6 +825,7 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
         if(current_proc != NULL)
         {
             InsertReadyQueue(ready_queue, current_proc);
+            exit_reason = 3;
         }
         current_proc = target;
     }
@@ -886,7 +922,7 @@ int ProcessGantt(g_gantt_container* gantt)
             printf("[%03d--  •  --%03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].end_time);
         }
         else {
-            printf("[%03d--< P-%02d >--%s %03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : "RR"), gantt -> gantt_chart[i].end_time);
+            printf("[%03d--< P-%02d >--%s %03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : (gantt -> gantt_chart[i].end_reason == 2 ? "RR" : "PREEMPTED")), gantt -> gantt_chart[i].end_time);
         }
     }
     printf("\n");
@@ -1001,8 +1037,8 @@ int Menu()
     CreateProcess(process_list, 0, 8, 0);
     CreateProcess(process_list, 0, 7, 0);
     CreateProcess(process_list, 0, 3, 0);
- */
 
+ */
     int bruh = 0;
 
 
@@ -1139,7 +1175,6 @@ int Menu()
 							type = RR;
 
 						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
-						printf("deb: 1\n");
 						pos++;
 						switch(interaction_input[pos])
 						{
@@ -1149,10 +1184,8 @@ int Menu()
 					           break;
 							case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
 	                        	tq *= 10;
-								printf("deb: 2\n");
 		                        if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
 	                            	tq += (interaction_input[pos] - 48);
-								printf("deb: 3\n");
 		                        } break;
 						}
 
@@ -1214,6 +1247,96 @@ int Menu()
 			}
         }
         else if(interaction_input[0] == 'c') {
+        	continue;
+        }
+        else if(interaction_input[0] == 's' && interaction_input[1] == 'a') {
+        	int pos = 1;
+         	char filename[1024] = "";
+          	int filename_pos = 0;
+         	while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+         	while(interaction_input[pos] != '\0')
+	        {
+	            switch (interaction_input[pos]) {
+	                case ' ':
+	                    inputbefore = interaction_input[pos];
+	                    pos++;
+	                    break;
+					case '\0':
+	                    inputbefore = interaction_input[pos];
+	                    pos++;
+	                    break;
+					default:
+                        filename[filename_pos] = interaction_input[pos];
+                        filename_pos++;
+                        pos++;
+	                }
+	        }
+			if (filename[filename_pos - 5] == '.' && filename[filename_pos - 4] == 'c' && filename[filename_pos - 3] == 'p' && filename[filename_pos - 2] == 'u' && filename[filename_pos - 1] == 's')
+			{
+				// continue
+			}
+			else
+			{
+				filename[filename_pos++] = '.';
+				filename[filename_pos++] = 'c';
+				filename[filename_pos++] = 'p';
+				filename[filename_pos++] = 'u';
+				filename[filename_pos++] = 's';
+				filename[filename_pos++] = '\0';
+			}
+
+			FILE *file = fopen(filename, "rb+");
+			if(file == NULL) {
+				printf("enas\n");
+				fclose(file);
+				file = fopen(filename, "wb+");
+			}
+			fwrite(&process_count, sizeof(int), 1, file);
+			fwrite(process_list, sizeof(g_proc *), process_count, file);
+
+			fclose(file);
+			printf("\tSuccessfully saved to %s\n", filename);
+
+        	continue;
+        }
+        else if(interaction_input[0] == 'l') {
+        	int pos = 1;
+         	char filename[1024] = "";
+          	int filename_pos = 0;
+         	while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+         	while(interaction_input[pos] != '\0')
+	        {
+	            switch (interaction_input[pos]) {
+	                case ' ':
+	                    inputbefore = interaction_input[pos];
+	                    pos++;
+	                    break;
+					case '\0':
+	                    inputbefore = interaction_input[pos];
+	                    pos++;
+	                    break;
+					default:
+                        filename[filename_pos] = interaction_input[pos];
+                        filename_pos++;
+                        pos++;
+	                }
+	        }
+
+			FILE *file = fopen(filename, "rb+");
+			if(file == NULL) {
+				printf("\tErr: file not found. Check the file's name and extension.\n");
+			}
+			else {
+				if(process_list != NULL) {
+					free(process_list);
+				}
+				process_list = CreateProcessList();
+				fread(&process_count, sizeof(int), 1, file);
+				fread(process_list, sizeof(g_proc), process_count, file);
+				printf("\tSuccessfully loaded %s\n", filename);
+			}
+			fclose(file);
+
         	continue;
         }
         else if(interaction_input[0] == 'h') {

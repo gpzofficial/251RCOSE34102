@@ -10,3 +10,5 @@ main
 # Exclude .DS_Store
 .DS_Store
 
+# Exclude .cpus files (Scheduler Process Source File)
+*.cpus
