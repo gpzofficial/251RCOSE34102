@@ -1,5 +1,5 @@
 CC = gcc
-OBJS = main.o ossim.o
+OBJS = main.o ossim.o ossimhelp.o
 
 main: $(OBJS)
 	gcc $^ -o main

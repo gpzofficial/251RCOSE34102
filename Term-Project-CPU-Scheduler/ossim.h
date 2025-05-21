@@ -1,6 +1,8 @@
 #ifndef _OSSIM_H
 #define _OSSIM_H
 
+#define _WAIT_SIMULT
+
 #define MAX_QUEUE_SIZE 1000
 #define TIMESTAMP_LIMIT 60
 
@@ -30,8 +32,8 @@ struct g_proc_s
 	int priority;
 
 	int io_count;
-	int io_curr;
 
+	int io_curr;
     int _cpu_burst_timer;
     int _io_burst_timer;
     int _waiting_time;
@@ -96,6 +98,7 @@ int Interact(g_proc** ready_queue, g_proc** process_list);
 int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt);
 
 int ProcessGantt(g_gantt_container* gantt);
+int ProcessProcessData(g_proc** process_list);
 
 g_proc* GenerateRandomProcess(g_proc** process_list);
 

@@ -2,8 +2,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <string.h>
 #include <time.h>
 #include "ossim.h"
+#include "ossimhelp.h"
+
+// #define _TESTMULE
 
 int ready_queue_position;
 int waiting_queue_position;
@@ -21,6 +25,15 @@ char** command_list;
 g_proc** CreateProcessList()
 {
     g_proc** process_list = (g_proc **) malloc(sizeof(g_proc *) * MAX_QUEUE_SIZE);
+
+    if(process_list == NULL) {
+    	printf("bad_malloc_err\n");
+    	exit(1);
+    }
+
+    for(int i = 0; i < MAX_QUEUE_SIZE; i++) {
+    	process_list[i] = NULL;
+    }
 
     return process_list;
 }
@@ -80,6 +93,7 @@ int InsertReadyQueue(g_proc** ready_queue, g_proc* proc)
     ready_queue[pos] = proc;
     ready_queue_position += 1;
 
+
     return 0;
 }
 
@@ -98,6 +112,8 @@ int InsertWaitingQueue(g_proc** waiting_queue, g_proc* proc)
 
     waiting_queue[pos] = proc;
     waiting_queue_position += 1;
+
+    printf("pid %d went into waiting queue(wqp = %d)\n", proc -> pid, waiting_queue_position);
 
     return 0;
 }
@@ -141,7 +157,7 @@ g_proc* EjectReadyQueue(g_proc** ready_queue, int index)
 
 int EjectWaitingQueue(g_proc** waiting_queue, g_proc** ready_queue)
 {
-
+#ifndef _WAIT_SIMULT
     if(waiting_queue[0] != NULL)
     {
         if(waiting_queue[0] -> io_burst_time[waiting_queue[0] -> io_curr] <= waiting_queue[0] -> _io_burst_timer)
@@ -168,7 +184,65 @@ int EjectWaitingQueue(g_proc** waiting_queue, g_proc** ready_queue)
     }
 
     waiting_queue_position -= 1;
+
     return 0;
+
+#endif
+
+#ifdef _WAIT_SIMULT
+
+
+
+	for(int i = 0; i < waiting_queue_position; i++) {
+
+
+		if(waiting_queue[i] != NULL)
+		{
+		    if(waiting_queue[i] -> io_burst_time[waiting_queue[i] -> io_curr] <= waiting_queue[i] -> _io_burst_timer)
+		    {
+		        InsertReadyQueue(ready_queue, waiting_queue[i]);
+		        waiting_queue[i] -> _io_burst_timer = 0;
+		        waiting_queue[i] -> io_curr++;
+		        // printf("Debug: proc %d returned to ready queue\n", waiting_queue[i] -> pid);
+		        waiting_queue[i] = NULL;
+		    }
+			else
+			{
+				waiting_queue[i] -> _io_burst_timer += 1;
+				// printf("Debug: io of %d -> %d\n", waiting_queue[i] -> pid, waiting_queue[i] -> _io_burst_timer);
+			}
+		}
+		else
+		{
+			printf("Warning: Process is NULL. Check if there are any faulty operation.\n");
+		}
+
+	}
+
+	int wqp = waiting_queue_position;
+
+	for(int i = 0; i < wqp; i++)
+	{
+		if(waiting_queue[i] != NULL)
+		{
+			int j = i;
+			for(j = i; waiting_queue[j - 1] == NULL; j--) {if(j == 0) break;}
+
+			waiting_queue[j] = waiting_queue[i];
+			if(i != j) waiting_queue[i] = NULL;
+			// printf("\tio: moving process on pos %d to %d\n", i, j);
+		}
+		else {
+			waiting_queue_position -= 1;
+			// printf("\tio: nothing on pos %d\n", i);
+		}
+	}
+
+
+    return 0;
+
+#endif
+
 }
 
 int DestoryReadyQueue(g_proc** ready_queue)
@@ -512,6 +586,7 @@ int _NPM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
         return -1;
     }
 
+
     int min_priority = INT_MAX;
     int index_to_return = -1;
 
@@ -597,7 +672,7 @@ int Interact(g_proc** ready_queue, g_proc** process_list)
     {
         char interaction_input[1024];
         printf("(interaction) ");
-        scanf("%[^\n]%*c", interaction_input);
+        fgets(interaction_input, 1024, stdin);
 
         char inputbefore = ' ';
 
@@ -702,7 +777,7 @@ int Interact(g_proc** ready_queue, g_proc** process_list)
 
                 if(pos == -1) break;
             }
-            printf("c: %d\n", cursor);
+            // printf("c: %d\n", cursor);
             if(proc == NULL && cursor > 1)
             {
             	proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
@@ -834,12 +909,14 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
 
 
 
-
+#ifndef _WAIT_SIMULT
 
     if(waiting_queue[0] != NULL)
     {
         waiting_queue[0] -> _io_burst_timer += 1;
     }
+
+#endif
 
     for(int i = 1; i < waiting_queue_position; i++)
     {
@@ -919,15 +996,35 @@ int ProcessGantt(g_gantt_container* gantt)
     }
     for(int i = 0; i < gantt -> gantt_count; i++) {
         if(gantt -> gantt_chart[i].pid == -1) {
-            printf("[%03d--  •  --%03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].end_time);
+            printf("[%03d--  •  --%03d] | \n", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].end_time);
         }
         else {
-            printf("[%03d--< P-%02d >--%s %03d] | ", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : (gantt -> gantt_chart[i].end_reason == 2 ? "RR" : "PREEMPTED")), gantt -> gantt_chart[i].end_time);
+            printf("[%03d--< P-%02d >--%s %03d] | \n", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : (gantt -> gantt_chart[i].end_reason == 2 ? "RR" : "PREEMPTED")), gantt -> gantt_chart[i].end_time);
         }
     }
     printf("\n");
 
     return 0;
+}
+
+int ProcessProcessData(g_proc** process_list)
+{
+
+	int avg_waiting_time = 0;
+	int avg_turnaround_time = 0;
+
+	for(int i = 0; i < process_count; i++)
+	{
+		printf("PROCESS %02d: Waiting Time = %03d, Turnaround Time = %03d\n", process_list[i] -> pid, process_list[i] -> _waiting_time, process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time);
+		avg_waiting_time += process_list[i] -> _waiting_time;
+		avg_turnaround_time += process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time;
+	}
+
+	printf("AVERAGE WAITING TIME = %.3f, AVERAGE TURNAROUND TIME = %.3f\n", (double) avg_waiting_time / (double) process_count, (double) avg_turnaround_time / (double) process_count);
+
+
+
+	return 0;
 }
 
 g_proc* GenerateRandomProcess(g_proc** process_list)
@@ -939,9 +1036,9 @@ g_proc* GenerateRandomProcess(g_proc** process_list)
 	while(1)
 	{
 		arr_time = rand() % TIMESTAMP_LIMIT;
-		cpu_burst_time = rand() % TIMESTAMP_LIMIT;
+		cpu_burst_time = rand() % (TIMESTAMP_LIMIT * 2);
 		priority = rand() % TIMESTAMP_LIMIT;
-		io_count = rand() % TIMESTAMP_LIMIT;
+		io_count = rand() % 20;
 
 		if(cpu_burst_time > 0) {
 			if(arr_time < cpu_burst_time)
@@ -952,28 +1049,40 @@ g_proc* GenerateRandomProcess(g_proc** process_list)
 
 	g_proc* proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
 
+	//printf("proc: arr = %d, cpuburst = %d, iocount = %d\n", arr_time, cpu_burst_time, io_count);
+
 	int io_burst_time;
 	int io_req_time;
 
+	int highbuff = 0;
+
 	int prev_req_time = 0;
 
+	//printf("io: \n");
+
 	for(int i = 0; i < io_count; i++) {
+		//printf("prt = %d, \n", prev_req_time);
 		while(1)
 		{
 			io_burst_time = rand() % (TIMESTAMP_LIMIT / 3);
 			io_req_time = rand() % (TIMESTAMP_LIMIT * 2);
 
-			if(io_req_time > arr_time && io_req_time < cpu_burst_time) {
+
+
+			if(io_req_time < cpu_burst_time) {
 				if(io_burst_time > 0)
 					{
 						if(prev_req_time < io_req_time)
 						{
+							//printf("ioreq = %d, ioburst = %d\n", io_req_time, io_burst_time);
 							prev_req_time = io_req_time;
 							proc = AddIOToProcess(proc, io_burst_time, io_req_time);
-			break;
+							break;
 						}
 						else {
+
 							if(prev_req_time >= cpu_burst_time - 1) {
+								//printf("no u\n");
 								break;
 							}
 						}
@@ -1012,8 +1121,13 @@ int Reset()
 	current_time = 0;
     rr_timer = 0;
 
+    waiting_queue_position = 0;
+    ready_queue_position = 0;
+
 	return 0;
 }
+
+
 
 int Menu()
 {
@@ -1032,13 +1146,17 @@ int Menu()
     *current_proc_point = NULL;
 
     Init();
-/*
-    CreateProcess(process_list, 0, 6, 0);
+
+#ifdef _TESTMULE
+
+    g_proc* a = CreateProcess(process_list, 0, 6, 0);
+    a = AddIOToProcess(a, 2, 3);
     CreateProcess(process_list, 0, 8, 0);
     CreateProcess(process_list, 0, 7, 0);
     CreateProcess(process_list, 0, 3, 0);
 
- */
+#endif
+
     int bruh = 0;
 
 
@@ -1055,15 +1173,135 @@ int Menu()
 
         char interaction_input[1024] = "";
         printf("(menu) ");
-        scanf("%[^\n]%*c", interaction_input);
+        fgets(interaction_input, 1024, stdin);
+
+
 
 
         char inputbefore = ' ';
 
         if(interaction_input[1023] != '\0') interaction_input[1023] = '\0';
 
+        //printf("deb: detected input = %s\n", interaction_input);
+        for(int i = 0; i < 1024; i++) {
+        	if(interaction_input[i] == '\n') interaction_input[i] = '\0';
+        }
 
-        if(interaction_input[0] == 's' && interaction_input[1] == 't')
+        if(interaction_input[0] == 'a')
+        {
+
+            int pos = 1;
+            while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+            int cursor = 0;
+
+            int arr_time = 0;
+            int cpu_burst_time = 0;
+            int io_burst_time = 0;
+            int io_req_time = 0;
+            int priority = 0;
+
+            g_proc* proc = NULL;
+
+            // scanf("%d %d %d %d %d", &arr_time, &cpu_burst_time, &io_burst_time, &io_req_time, &priority);
+
+            while(interaction_input[pos] != '\0')
+            {
+                switch (interaction_input[pos]) {
+                    case ' ':
+                        if(inputbefore != ' ') {
+                            cursor++;
+                        }
+                        inputbefore = interaction_input[pos];
+                        pos++;
+
+                        if(cursor == 3)
+                        {
+                        	proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
+                        }
+                        else if(cursor >= 4 && cursor % 2 != 0)
+                        {
+                        	proc = AddIOToProcess(proc, io_burst_time, io_req_time);
+                         	io_burst_time = 0;
+                         	io_req_time = 0;
+                        }
+
+                        break;
+                    case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+                        switch(cursor)
+                        {
+                            case 0:
+                                arr_time *= 10;
+                                if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+                                    arr_time += (interaction_input[pos] - 48);
+                                }
+                                break;
+                            case 1:
+                                cpu_burst_time *= 10;
+                                if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+                                    cpu_burst_time += (interaction_input[pos] - 48);
+                                }
+                                break;
+                            case 2:
+                                priority *= 10;
+                                if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+                                    priority += (interaction_input[pos] - 48);
+                                }
+                                break;
+                            default:
+                            	if(cursor % 2 == 0) // IO BURST TIME
+	                            {
+	                            	io_burst_time *= 10;
+		                            if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+		                                io_burst_time += (interaction_input[pos] - 48);
+		                            }
+	                            }
+								else
+                             	{
+	                            	io_req_time *= 10;
+		                            if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+		                                io_req_time += (interaction_input[pos] - 48);
+		                            }
+	                            }
+                             	break;
+                        }
+                        inputbefore = interaction_input[pos];
+                        pos++;
+
+                        break;
+                    default:
+                        pos = -1;
+                        break;
+                    }
+
+                if(pos == -1) break;
+            }
+            //printf("c: %d\n", cursor);
+            if(proc == NULL && cursor > 1)
+            {
+            	proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
+            }
+            proc = AddIOToProcess(proc, io_burst_time, io_req_time);
+
+            // printf("%d %d %d %d %d ", arr_time, cpu_burst_time, io_req_time, io_burst_time, priority);
+
+            if(pos == -1)
+            {
+                printf("\tErr: Invalid syntax for process addition(1).\n");
+            }
+            else if(arr_time < current_time)
+            {
+                printf("\tErr: Arrival time is passed.\n");
+            }
+            else if(proc == NULL)
+            {
+            	printf("\tErr: Invalid syntax for process addition(2).\n");
+            }
+            else {
+
+                printf("\tadding process %d\n", process_count - 1);
+            }
+        }
+        else if(interaction_input[0] == 's' && interaction_input[1] == 't')
         {
 	       	g_gantt* gantt_chart = (g_gantt *) malloc(sizeof(g_gantt) * MAX_QUEUE_SIZE);
 	       	g_gantt_container* g_container = (g_gantt_container *) malloc(sizeof(g_gantt_container));
@@ -1120,9 +1358,12 @@ int Menu()
 
 				int prev_proc = -1;
 
-			    if(bruh != -1) ProcessGantt(g_container); }
+			    if(bruh != -1) ProcessGantt(g_container);
+				if(bruh != -1) ProcessProcessData(process_list);
 				gantt_list[gantt_list_count] = g_container;
 				gantt_list_count++;
+			}
+
 
 			bruh = 0;
         }
@@ -1231,10 +1472,14 @@ int Menu()
 	                    pos++;
 	                    break;
 					case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-                        proc_count *= 10;
                         if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+                        	proc_count *= 10;
                             proc_count += (interaction_input[pos] - 48);
+
                         }
+                        pos++;
+                        break;
+
 	                default:
 	                    pos = -1;
 	                    break;
@@ -1242,6 +1487,7 @@ int Menu()
 
 	            if(pos == -1) break;
 	        }
+			printf("prc = %d\n", proc_count);
 			for(int i = 0; i < proc_count; i++) {
 				GenerateRandomProcess(process_list);
 			}
@@ -1285,14 +1531,21 @@ int Menu()
 				filename[filename_pos++] = '\0';
 			}
 
-			FILE *file = fopen(filename, "rb+");
-			if(file == NULL) {
-				printf("enas\n");
-				fclose(file);
-				file = fopen(filename, "wb+");
-			}
+			FILE *file = fopen(filename, "wb+");
+
 			fwrite(&process_count, sizeof(int), 1, file);
-			fwrite(process_list, sizeof(g_proc *), process_count, file);
+			for(int i = 0; i < process_count; i++) {
+				int iocountofprocess = process_list[i] -> io_count;
+				fwrite(&process_list[i] -> pid, sizeof(int), 1, file);
+				fwrite(&process_list[i] -> arr_time, sizeof(int), 1, file);
+				fwrite(&process_list[i] -> cpu_burst_time, sizeof(int), 1, file);
+				fwrite(&process_list[i] -> priority, sizeof(int), 1, file);
+				fwrite(&process_list[i] -> io_count, sizeof(int), 1, file);
+				for(int j = 0; j < iocountofprocess; j++) {
+					fwrite(&process_list[i] -> io_req_time[j], sizeof(int), 1, file);
+					fwrite(&process_list[i] -> io_burst_time[j], sizeof(int), 1, file);
+				}
+			}
 
 			fclose(file);
 			printf("\tSuccessfully saved to %s\n", filename);
@@ -1330,52 +1583,124 @@ int Menu()
 				if(process_list != NULL) {
 					free(process_list);
 				}
+
+				int prc = 0;
+
+
 				process_list = CreateProcessList();
-				fread(&process_count, sizeof(int), 1, file);
-				fread(process_list, sizeof(g_proc), process_count, file);
+				process_count = 0;
+
+
+
+				fread(&prc, sizeof(int), 1, file);
+				// printf("\tprocess_count = %d\n", prc);
+
+
+
+				for(int i = 0; i < prc; i = i + 1) {
+					// printf("%d\n", i);
+					int pid;
+					int arr_time;
+					int cpu_burst_time;
+					int priority;
+					int io_count;
+
+					fread(&pid, sizeof(int), 1, file);
+					fread(&arr_time, sizeof(int), 1, file);
+					fread(&cpu_burst_time, sizeof(int), 1, file);
+					fread(&priority, sizeof(int), 1, file);
+					fread(&io_count, sizeof(int), 1, file);
+
+					// printf("\tpid = %d arr = %d cpub = %d pri = %d\n", pid, arr_time, cpu_burst_time, priority);
+					// printf("\tio_count = %d\n", io_count);
+
+					g_proc* proc = CreateProcess(process_list, arr_time, cpu_burst_time, priority);
+
+					for(int j = 0; j < io_count; j++) {
+						int io_req_time;
+						int io_burst_time;
+						fread(&io_req_time, sizeof(int), 1, file);
+						fread(&io_burst_time, sizeof(int), 1, file);
+						// printf("\tiob = %d ior = %d\n", io_burst_time, io_req_time);
+						proc = AddIOToProcess(proc, io_burst_time, io_req_time);
+					}
+
+				}
 				printf("\tSuccessfully loaded %s\n", filename);
+
 			}
+
 			fclose(file);
 
         	continue;
         }
+        else if(interaction_input[0] == 'q')
+        {
+        	for(int i = 0; i < process_count; i++) {
+         		if(process_list[i] != NULL) {
+          			free(process_list[i]);
+             		process_list[i] = NULL;
+          		}
+         	}
+        	DestroyProcessList(process_list);
+        	DestoryReadyQueue(ready_queue);
+        	DestoryWaitingQueue(waiting_queue);
+         	if(gantt_list != NULL)
+          	{
+	         	for(int i = 0; i < gantt_list_count; i++) {
+					if(gantt_list[i] == NULL) {
+		        		for(int j = 0; j < gantt_list[j] -> gantt_count; j++) {
+		          			if(gantt_list[j] -> gantt_chart != NULL) {
+		             			free(gantt_list[j] -> gantt_chart);
+		                		gantt_list[j] -> gantt_chart = NULL;
+		             		}
+		          		}
+	            		free(gantt_list[i]);
+	              		gantt_list[i] = NULL;
+	            	}
+	          	}
+				free(gantt_list);
+           	}
+
+          	return 0;
+
+        }
+        else if(interaction_input[0] == 'p')
+        {
+            for(int i = 0; i < process_count; i++)
+            {
+                PrintProcess(process_list[i]);
+            }
+        }
         else if(interaction_input[0] == 'h') {
-	        printf("\tpossible commands:\n\tCMD\t\tACTION\n");
 
-	        printf("\n\tstart\t\tStart scheduling.\n");
-	        printf("\t\tUsage: start <options>\n");
-	        printf("\t\t\t<options> :\n");
-	        printf("\t\t\t-i\tInteraction mode – This let you to step through the changes using interactive shell.\n");
-	        printf("\t\t\t-n\tSchedule mode(default) – Use the selected schedule algorithm to make a gantt chart of the schedules.\n");
 
-	        printf("\n\tset\t\tSet the scheduling algorithm. This will be ignored on analysis.\n");
-	        printf("\t\tUsage: set <algorithm>\n");
-	        printf("\t\t\t<algorithm> :\n");
-	        printf("\t\t\tfcfs(default)\tFirst come first served algorithm.\n");
-	        printf("\t\t\tsjf\tShortest job first algorithm.\n");
-	        printf("\t\t\tsrtf\tShortest remaining time first algorithm\n");
-	        printf("\t\t\trr <time-quantum>\tRound robin algorithm. Insert an integer on time quantum.\n");
-	        printf("\t\t\tnppr\tNon-preemptive priority algorithm.\n");
-	        printf("\t\t\tppr\tPreemptive priority algorithm.\n");
+          {
+       		int pos = 0;
+         	int filename_pos = 0;
+        	while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
+         	while(interaction_input[pos] == ' ' && interaction_input[pos] != '\0') { pos++; }
 
-	        printf("\n\tgenerate\t\tGenerate a set of randomized processes and put them into the ready queue.\n");
-	        printf("\t\tUsage: generate <process-count>\n");
-	        printf("\t\t\t<process-count> : Count of processes to create. Positive integer.\n");
+          	if(interaction_input[pos] == '\0') { PrintHelp(NULL); }
+	        else if(interaction_input[pos] == 'a' && interaction_input[pos + 1] == 'd') { PrintHelp("add"); }
+			else if(interaction_input[pos] == 'a' && interaction_input[pos + 1] == 'n') { PrintHelp("analyze"); }
+	        else if(interaction_input[pos] == 's' && interaction_input[pos + 1] == 't') { PrintHelp("start"); }
+	        else if(interaction_input[pos] == 's' && interaction_input[pos + 1] == 'e') { PrintHelp("set"); }
+	        else if(interaction_input[pos] == 'g') { PrintHelp("generate"); }
+	        else if(interaction_input[pos] == 'c') {}
+	        else if(interaction_input[pos] == 's' && interaction_input[pos + 1] == 'a') { PrintHelp("save"); }
+	        else if(interaction_input[pos] == 'l') { PrintHelp("load"); }
+	        else if(interaction_input[pos] == 'q') { PrintHelp("quit"); }
+			else if(interaction_input[pos] == 'p') { PrintHelp("print"); }
+									else { printf("\tErr: cannot find the help of the given command.\n"); }
+          }
 
-	        printf("\n\tsave\t\tSave the current sessions as a file.\n");
-	        printf("\t\tUsage: save <file-name>\n");
-	        printf("\t\t\t<file-name> : Name of the session to save. Extension is \".cpus\".\n");
 
-	        printf("\n\tload\t\tLoad the saved session to analyze the session. The opened session will NOT be saved.\n");
-	        printf("\t\tUsage: load <file-name>\n");
-	        printf("\t\t\t<file-name> : Name of the session to load.\n");
-
-	        printf("\n\tanalyze\t\tAnalyze the session by testing all of the algorithm, and compare the output.\n");
-	        printf("\t\tUsage: analyze\n");
         }
         else {
             printf("\tErr: unknown command. use h to show help\n");
         }
+
     }
 
     return 0;

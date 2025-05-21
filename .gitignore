@@ -1,6 +1,9 @@
 # .gitignore
 # Written by gpzofficial
 
+# Exclude debug test files
+_test.c
+
 # Exclude object files
 *.o
 
