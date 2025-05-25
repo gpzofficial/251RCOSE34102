@@ -297,6 +297,33 @@ int PrintProcess(g_proc* proc)
     return 0;
 }
 
+int PrintProcessToFile(g_proc* proc, FILE* file)
+{
+	if(file == NULL) return -1;
+
+    if(proc == NULL)
+    {
+        fprintf(file, "Err: Cannot print NULL process.\n");
+        return -1;
+    }
+
+    fprintf(file, "[PID: %d, ", proc -> pid);
+    fprintf(file, "ARRIVAL: %d, ", proc -> arr_time);
+    fprintf(file, "CPU BURST TIME: %d(currently %d), ", proc -> cpu_burst_time, proc -> _cpu_burst_timer);
+    fprintf(file, "PRIORITY: %d, ", proc -> priority);
+    fprintf(file, "WAITING FOR %d STEPS]\n", proc -> _waiting_time);
+    fprintf(file, "\tIO LIST: ");
+    for(int i = 0; i < proc -> io_count; i++)
+    {
+    	fprintf(file, "[at %d bursts %d] ", proc -> io_req_time[i], proc -> io_burst_time[i]);
+    }
+
+    fprintf(file, "\n");
+
+    return 0;
+}
+
+
 g_proc* AddIOToProcess(g_proc* proc, int io_burst_time, int io_req_time)
 {
 	if(proc == NULL) {
@@ -968,43 +995,80 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
 
 }
 
-int ProcessGantt(g_gantt_container* gantt)
+int ProcessGantt(g_gantt_container* gantt, g_proc** process_list)
 {
+	time_t timer;
+    time(&timer);
+    struct tm *tm_info = localtime(&timer);
+	char timecode[128];
+	strftime(timecode, 50, "%Y-%m-%d-%H-%M-%S", tm_info);
+
+	char filename[256];
+
+	sprintf(filename, "%s_gantt.txt", timecode);
+
+	FILE *file = fopen(filename, "w+");
+
+
     printf("Schedule Result:\n");
     printf("\tSchedule Type: ");
+    fprintf(file, "Schedule Result:\n Schedule Type: ");
+
+
     switch(gantt -> type)
     {
     	case FCFS:
      		printf("FCFS\n");
+       		fprintf(file, "FCFS\n");
        		break;
        	case SJF:
         	printf("SJF\n");
+         	fprintf(file, "SJF\n");
          	break;
         case SRTF:
         	printf("SRTF\n");
+         	fprintf(file, "SRTF\n");
          	break;
         case RR:
-        	printf("RR\n");
+        	printf("RR with time quantum %d\n", rr_tq);
+         	fprintf(file, "RR with time quantum %d\n", rr_tq);
          	break;
         case NPM_PRIORITY:
         	printf("NPM_PRIORITY\n");
+         	fprintf(file, "NPM_PRIORITY\n");
          	break;
         case PM_PRIORITY:
         	printf("PM_PRIORITY\n");
+         	fprintf(file, "PM_PRIORITY\n");
          	break;
         default:
         	break;
 
     }
+
+
+    fprintf(file, "\nProcess List: \n");
+
+    for(int i = 0; i < process_count; i++) {
+   		PrintProcessToFile(process_list[i], file);
+    }
+
+
     for(int i = 0; i < gantt -> gantt_count; i++) {
         if(gantt -> gantt_chart[i].pid == -1) {
             printf("[%03d--  •  --%03d] | \n", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].end_time);
+            fprintf(file, "[%03d--  •  --%03d] | \n", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].end_time);
         }
         else {
             printf("[%03d--< P-%02d >--%s %03d] | \n", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : (gantt -> gantt_chart[i].end_reason == 2 ? "RR" : "PREEMPTED")), gantt -> gantt_chart[i].end_time);
+            fprintf(file, "[%03d--< P-%02d >--%s %03d] | \n", gantt -> gantt_chart[i].start_time, gantt -> gantt_chart[i].pid, gantt -> gantt_chart[i].end_reason == 0 ? "END" : (gantt -> gantt_chart[i].end_reason == 1 ? "IO WAIT" : (gantt -> gantt_chart[i].end_reason == 2 ? "RR" : "PREEMPTED")), gantt -> gantt_chart[i].end_time);
         }
     }
     printf("\n");
+
+    ProcessProcessDataToFile(process_list, gantt -> type, file);
+
+    fclose(file);
 
     return 0;
 }
@@ -1054,6 +1118,28 @@ int ProcessProcessData(g_proc** process_list, int mode)
 		}
 
 	printf("AVERAGE WAITING TIME = %.3f, AVERAGE TURNAROUND TIME = %.3f\n", (double) avg_waiting_time / (double) process_count, (double) avg_turnaround_time / (double) process_count);
+	return 0;
+}
+
+int ProcessProcessDataToFile(g_proc** process_list, int mode, FILE* file)
+{
+
+	if(file == NULL) return -1;
+
+	int avg_waiting_time = 0;
+	int avg_turnaround_time = 0;
+
+
+		for(int i = 0; i < process_count; i++)
+		{
+			if(mode == 0) {
+				fprintf(file, "PROCESS %02d: Waiting Time = %03d, Turnaround Time = %03d\n", process_list[i] -> pid, process_list[i] -> _waiting_time, process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time);
+			}
+			avg_waiting_time += process_list[i] -> _waiting_time;
+			avg_turnaround_time += process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time;
+		}
+
+	fprintf(file, "AVERAGE WAITING TIME = %.3f, AVERAGE TURNAROUND TIME = %.3f\n", (double) avg_waiting_time / (double) process_count, (double) avg_turnaround_time / (double) process_count);
 	return 0;
 }
 
@@ -1189,11 +1275,11 @@ int Menu()
 
 #endif
 
-    int bruh = 0;
+    int i_flag = 0;
 
 
 
-    printf("[ CPU Schedule Simulator ]\n\n");
+    printf("[ CPU Schedule Simulator by @gpzofficial]\n\tuse help to show possible commands!\n\n");
 
     while(1)
     {
@@ -1415,21 +1501,21 @@ int Menu()
 				}
 
 		        do {
-		            if(bruh != 1 && interaction_mode == 1){ bruh = Interact(ready_queue, process_list);}
-					if(bruh == -1){ break;}
+		            if(i_flag != 1 && interaction_mode == 1){ i_flag = Interact(ready_queue, process_list);}
+					if(i_flag == -1){ break;}
 		        }
 		        while(Step(type, ready_queue, waiting_queue, current_proc_point, g_container) == 0);
 
 				int prev_proc = -1;
 
-			    if(bruh != -1) ProcessGantt(g_container);
-				if(bruh != -1) ProcessProcessData(process_list, 0);
+			    if(i_flag != -1) ProcessGantt(g_container, process_list);
+				if(i_flag != -1) ProcessProcessData(process_list, 0);
 				gantt_list[gantt_list_count] = g_container;
 				gantt_list_count++;
 			}
 
 
-			bruh = 0;
+			i_flag = 0;
         }
         else if(interaction_input[0] == 's' && interaction_input[1] == 'e')
         {

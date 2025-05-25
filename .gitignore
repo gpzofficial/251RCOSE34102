@@ -13,5 +13,8 @@ main
 # Exclude .DS_Store
 .DS_Store
 
-# Exclude .cpus files (Scheduler Process Source File)
+# Exclude .cpus files (Scheduler Process Data File)
 *.cpus
+
+# Exclude txt files (Gantt Chart Output)
+*.txt
