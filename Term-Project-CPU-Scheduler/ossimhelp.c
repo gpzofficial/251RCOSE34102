@@ -3,7 +3,6 @@
 int PrintHelp(const char *input)
 {
 
-	printf("%s\n", input);
 
 
 	if(input == NULL)

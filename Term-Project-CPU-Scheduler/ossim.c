@@ -15,6 +15,8 @@ int process_count;
 int current_time;
 int gantt_list_count;
 
+int interaction_mode_flag = 0;
+
 int exit_reason;
 
 int rr_timer;
@@ -113,7 +115,7 @@ int InsertWaitingQueue(g_proc** waiting_queue, g_proc* proc)
     waiting_queue[pos] = proc;
     waiting_queue_position += 1;
 
-    printf("pid %d went into waiting queue(wqp = %d)\n", proc -> pid, waiting_queue_position);
+    // printf("pid %d went into waiting queue(wqp = %d)\n", proc -> pid, waiting_queue_position);
 
     return 0;
 }
@@ -1007,25 +1009,54 @@ int ProcessGantt(g_gantt_container* gantt)
     return 0;
 }
 
-int ProcessProcessData(g_proc** process_list)
+void PrintScheduleType(s_type type) {
+	switch(type)
+    {
+    	case FCFS:
+     		printf("FCFS\n");
+       		break;
+       	case SJF:
+        	printf("SJF\n");
+         	break;
+        case SRTF:
+        	printf("SRTF\n");
+         	break;
+        case RR:
+        	printf("RR\n");
+         	break;
+        case NPM_PRIORITY:
+        	printf("NPM_PRIORITY\n");
+         	break;
+        case PM_PRIORITY:
+        	printf("PM_PRIORITY\n");
+         	break;
+        default:
+        	printf("NOTYPE\n");
+        	break;
+
+    }
+}
+
+int ProcessProcessData(g_proc** process_list, int mode)
 {
 
 	int avg_waiting_time = 0;
 	int avg_turnaround_time = 0;
 
-	for(int i = 0; i < process_count; i++)
-	{
-		printf("PROCESS %02d: Waiting Time = %03d, Turnaround Time = %03d\n", process_list[i] -> pid, process_list[i] -> _waiting_time, process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time);
-		avg_waiting_time += process_list[i] -> _waiting_time;
-		avg_turnaround_time += process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time;
-	}
+
+		for(int i = 0; i < process_count; i++)
+		{
+			if(mode == 0) {
+				printf("PROCESS %02d: Waiting Time = %03d, Turnaround Time = %03d\n", process_list[i] -> pid, process_list[i] -> _waiting_time, process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time);
+			}
+			avg_waiting_time += process_list[i] -> _waiting_time;
+			avg_turnaround_time += process_list[i] -> _waiting_time + process_list[i] -> cpu_burst_time;
+		}
 
 	printf("AVERAGE WAITING TIME = %.3f, AVERAGE TURNAROUND TIME = %.3f\n", (double) avg_waiting_time / (double) process_count, (double) avg_turnaround_time / (double) process_count);
-
-
-
 	return 0;
 }
+
 
 g_proc* GenerateRandomProcess(g_proc** process_list)
 {
@@ -1131,6 +1162,7 @@ int Reset()
 
 int Menu()
 {
+	printf("\x1B[2J");
 	int interaction_mode = 0;
     g_proc** process_list = CreateProcessList();
     g_proc** ready_queue = CreateReadyQueue();
@@ -1187,7 +1219,7 @@ int Menu()
         	if(interaction_input[i] == '\n') interaction_input[i] = '\0';
         }
 
-        if(interaction_input[0] == 'a')
+        if(interaction_input[0] == 'a' && interaction_input[1] == 'd')
         {
 
             int pos = 1;
@@ -1301,6 +1333,38 @@ int Menu()
                 printf("\tadding process %d\n", process_count - 1);
             }
         }
+        else if(interaction_input[0] == 'a' && interaction_input[1] == 'n')
+        {
+        	g_gantt_container* analysis_result[6];
+        	for(int i = 0; i < 6; i++)
+         	{
+          		Reset();
+        		g_gantt* gantt_chart = (g_gantt *) malloc(sizeof(g_gantt) * MAX_QUEUE_SIZE);
+		       	g_gantt_container* g_container = (g_gantt_container *) malloc(sizeof(g_gantt_container));
+		       	g_container -> gantt_chart = gantt_chart;
+        	    g_container -> gantt_count = 0;
+            	g_container -> type = i;
+
+            	for(int i = 0; i < process_count; i++)
+				{
+					process_list[i] -> io_curr = 0;
+					process_list[i] -> _io_burst_timer = 0;
+					process_list[i] -> _cpu_burst_timer = 0;
+					process_list[i] -> _waiting_time = 0;
+					InsertReadyQueue(ready_queue, process_list[i]);
+				}
+
+          		while(Step(i, ready_queue, waiting_queue, current_proc_point, g_container) == 0) {}
+
+           		analysis_result[i] = g_container;
+
+             	printf("Schedule result: ");
+             	PrintScheduleType(i);
+              	ProcessProcessData(process_list, 1);
+          	}
+
+         	printf("\n\t\tLower waiting time is better.\n\n");
+        }
         else if(interaction_input[0] == 's' && interaction_input[1] == 't')
         {
 	       	g_gantt* gantt_chart = (g_gantt *) malloc(sizeof(g_gantt) * MAX_QUEUE_SIZE);
@@ -1324,7 +1388,7 @@ int Menu()
 						}
 						else if(interaction_input[pos + 1] == 'i') {
 							interaction_mode = 1;
-							printf("\t\tinteraction !\n");
+							//printf("\t\tinteraction !\n");
 						}
 						pos += 2;
 						break;
@@ -1359,7 +1423,7 @@ int Menu()
 				int prev_proc = -1;
 
 			    if(bruh != -1) ProcessGantt(g_container);
-				if(bruh != -1) ProcessProcessData(process_list);
+				if(bruh != -1) ProcessProcessData(process_list, 0);
 				gantt_list[gantt_list_count] = g_container;
 				gantt_list_count++;
 			}

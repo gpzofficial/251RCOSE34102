@@ -98,7 +98,8 @@ int Interact(g_proc** ready_queue, g_proc** process_list);
 int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt);
 
 int ProcessGantt(g_gantt_container* gantt);
-int ProcessProcessData(g_proc** process_list);
+void PrintScheduleType(s_type type);
+int ProcessProcessData(g_proc** process_list, int mode);
 
 g_proc* GenerateRandomProcess(g_proc** process_list);
 
