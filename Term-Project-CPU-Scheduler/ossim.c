@@ -9,6 +9,9 @@
 
 // #define _TESTMULE
 
+// #define SHOWGANTTONEVAL
+
+
 int ready_queue_position;
 int waiting_queue_position;
 int process_count;
@@ -496,10 +499,11 @@ int _FCFS_Proc(g_proc** ready_queue, g_proc* current_proc)
 
     for(int i = 0; ready_queue[i] != NULL; i++)
     {
-        if(min_arr_time > ready_queue[i] -> arr_time && current_time >= ready_queue[i] -> arr_time)
+        if(current_time >= ready_queue[i] -> arr_time)
         {
-            min_arr_time = ready_queue[i] -> arr_time;
+            //min_arr_time = ready_queue[i] -> arr_time;
             index_to_return = i;
+            break;
         }
 
         if(i + 1 >= MAX_QUEUE_SIZE)
@@ -602,10 +606,11 @@ int _RR_Proc(g_proc** ready_queue, g_proc* current_proc)
 
     for(int i = 0; ready_queue[i] != NULL; i++)
     {
-        if(min_arr_time > ready_queue[i] -> arr_time && current_time >= ready_queue[i] -> arr_time)
+        if(current_time >= ready_queue[i] -> arr_time)
         {
-            min_arr_time = ready_queue[i] -> arr_time;
+            // min_arr_time = ready_queue[i] -> arr_time;
             index_to_return = i;
+            break;
         }
 
 
@@ -640,7 +645,7 @@ int _NPM_PRIORITY_Proc(g_proc** ready_queue, g_proc* current_proc)
 
     for(int i = 0; ready_queue[i] != NULL; i++)
     {
-        if(min_priority > ready_queue[i] -> priority)
+        if(min_priority > ready_queue[i] -> priority && current_time >= ready_queue[i] -> arr_time)
         {
             min_priority = ready_queue[i] -> priority;
             index_to_return = i;
@@ -1478,6 +1483,11 @@ int Menu()
 
              	printf("Schedule result: ");
              	PrintScheduleType(i);
+
+#ifdef SHOWGANTTONEVAL
+             	ProcessGantt(g_container, process_list);
+#endif
+
               	ProcessProcessData(process_list, 0);
           	}
 
@@ -1601,17 +1611,21 @@ int Menu()
 
 						while(interaction_input[pos] != ' ' && interaction_input[pos] != '\0') { pos++; }
 						pos++;
-						switch(interaction_input[pos])
+						while(interaction_input[pos] != '\0')
 						{
-							case ' ':
-					           inputbefore = interaction_input[pos];
-					           pos++;
-					           break;
-							case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
-	                        	tq *= 10;
-		                        if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
-	                            	tq += (interaction_input[pos] - 48);
-		                        } break;
+							switch(interaction_input[pos])
+							{
+								case ' ':
+						           inputbefore = interaction_input[pos];
+						           pos++;
+						           break;
+								case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
+		                        	tq *= 10;
+			                        if(interaction_input[pos] >= 48 && interaction_input[pos] < 58) {
+		                            	tq += (interaction_input[pos] - 48);
+
+			                        } pos++; break;
+							}
 						}
 
 						if(tq <= 0) tq = 1;
