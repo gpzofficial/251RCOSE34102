@@ -9,6 +9,7 @@ int PrintHelp(const char *input)
 	{
 		printf("\tpossible commands:\n\tCMD\t\tACTION\n");
 		printf("\tadd\t\tAdd process to the process list.\n");
+		printf("\tprint\t\tPrint the currently registered processes.\n");
 		printf("\tstart\t\tStart scheduling.\n");
 		printf("\tset\t\tSet the scheduling algorithm. This will be ignored on analysis.\n");
 		printf("\tgenerate\tGenerate a set of randomized processes and put them into the ready queue.\n");

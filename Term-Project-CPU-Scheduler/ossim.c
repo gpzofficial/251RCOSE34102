@@ -1307,7 +1307,7 @@ int Menu()
 
 
 
-    printf("[ CPU Schedule Simulator by @gpzofficial]\n\tuse help to show possible commands!\n\n");
+    printf("[ CPU Schedule Simulator by @gpzofficial]\n\tuse \"help\" to show possible commands!\n\n");
 
     while(1)
     {
