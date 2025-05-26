@@ -22,6 +22,8 @@ int exit_reason;
 int rr_timer;
 int rr_tq;
 
+int* interaction_breakpoint;
+
 char** command_list;
 
 g_proc** CreateProcessList()
@@ -206,6 +208,9 @@ int EjectWaitingQueue(g_proc** waiting_queue, g_proc** ready_queue)
 		        waiting_queue[i] -> _io_burst_timer = 0;
 		        waiting_queue[i] -> io_curr++;
 		        // printf("Debug: proc %d returned to ready queue\n", waiting_queue[i] -> pid);
+				if(interaction_mode_flag == 1) {
+					printf("\tProcess %d returned to ready queue\n", waiting_queue[i] -> pid);
+				}
 		        waiting_queue[i] = NULL;
 		    }
 			else
@@ -411,6 +416,9 @@ g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue,
     if(proc -> cpu_burst_time <= proc -> _cpu_burst_timer)
     {
         // printf("\t -> TERMINATED(WAITING: %2d)\n", proc -> _waiting_time);
+        if(interaction_mode_flag == 1) {
+        	printf("\tProcess %02d finished(WAITING: %2d)\n", proc -> pid, proc -> _waiting_time);
+        }
         exit_reason = 0;
         rr_timer = 0;
         return NULL;
@@ -423,6 +431,11 @@ g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue,
 			rr_timer = 0;
 	        InsertWaitingQueue(waiting_queue, proc);
 			exit_reason = 1;
+
+			if(interaction_mode_flag == 1) {
+	        	printf("\tProcess %02d is out for IO\n", proc -> pid);
+	        }
+
 	        // printf("\t -> IO WAIT\n");
 	        return NULL;
     	}
@@ -432,6 +445,9 @@ g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue,
 								exit_reason = 2;
 	      		rr_timer = 0;
 	        		//printf("HIT!\n");
+					if(interaction_mode_flag == 1) {
+			        	printf("\tProcess %02d used all the time quantum\n", proc -> pid);
+			        }
 	    			InsertReadyQueue(ready_queue, proc);
 	       		return NULL;
 	     	}
@@ -443,6 +459,9 @@ g_proc* ControlCurrentProcess(s_type type, g_proc* proc, g_proc** waiting_queue,
 								exit_reason = 2;
 	      		rr_timer = 0;
 	        		//printf("HIT!\n");
+					if(interaction_mode_flag == 1) {
+			        	printf("\tProcess %02d used all the time quantum\n", proc -> pid);
+			        }
 	    			InsertReadyQueue(ready_queue, proc);
 	       		return NULL;
 	     	}
@@ -1254,6 +1273,13 @@ int Menu()
     g_proc** ready_queue = CreateReadyQueue();
     g_proc** waiting_queue = CreateWaitingQueue();
 
+    interaction_breakpoint = (int *) malloc(sizeof(int) * 1024);
+
+    if(interaction_breakpoint == NULL) {
+    	printf("iberror\n");
+     	exit(1);
+    }
+
     s_type type = FCFS;
 
 
@@ -1279,11 +1305,14 @@ int Menu()
 
 
 
+
+
     printf("[ CPU Schedule Simulator by @gpzofficial]\n\tuse help to show possible commands!\n\n");
 
     while(1)
     {
      	interaction_mode = 0;
+      	interaction_mode_flag = 0;
 
       	Reset();
        	ready_queue_position = 0;
@@ -1431,6 +1460,9 @@ int Menu()
         	    g_container -> gantt_count = 0;
             	g_container -> type = i;
 
+	             ready_queue_position = 0;
+	             *current_proc_point = NULL;
+
             	for(int i = 0; i < process_count; i++)
 				{
 					process_list[i] -> io_curr = 0;
@@ -1446,7 +1478,7 @@ int Menu()
 
              	printf("Schedule result: ");
              	PrintScheduleType(i);
-              	ProcessProcessData(process_list, 1);
+              	ProcessProcessData(process_list, 0);
           	}
 
          	printf("\n\t\tLower waiting time is better.\n\n");
@@ -1471,9 +1503,11 @@ int Menu()
 					case '-':
 						if(interaction_input[pos + 1] == 'n') {
 							interaction_mode = 0;
+							interaction_mode_flag = 0;
 						}
 						else if(interaction_input[pos + 1] == 'i') {
 							interaction_mode = 1;
+							interaction_mode_flag = 1;
 							//printf("\t\tinteraction !\n");
 						}
 						pos += 2;
