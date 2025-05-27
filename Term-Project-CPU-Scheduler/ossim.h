@@ -96,7 +96,10 @@ int GetNextProcess(s_type type, g_proc** ready_queue, g_proc* current_proc);
 
 
 int Interact(g_proc** ready_queue, g_proc** process_list);
-int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt);
+
+void CheckArrival(g_proc** process_list, g_proc** ready_queue);
+
+int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt, g_proc** process_list);
 
 int ProcessGantt(g_gantt_container* gantt, g_proc** process_list);
 void PrintScheduleType(s_type type);

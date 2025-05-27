@@ -18,6 +18,8 @@ int process_count;
 int current_time;
 int gantt_list_count;
 
+int inserted_process_count;
+
 int interaction_mode_flag = 0;
 
 int exit_reason;
@@ -885,7 +887,21 @@ int Interact(g_proc** ready_queue, g_proc** process_list)
     return 0;
 }
 
-int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt)
+void CheckArrival(g_proc** process_list, g_proc** ready_queue) {
+	for(int i = 0; i < process_count; i++) {
+		if(process_list[i] == NULL) {
+
+		}
+		else {
+			if(process_list[i] -> arr_time == current_time) {
+				InsertReadyQueue(ready_queue, process_list[i]);
+				inserted_process_count++;
+			}
+		}
+	}
+}
+
+int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** current_proc_point, g_gantt_container* gantt, g_proc** process_list)
 {
     /*
 
@@ -906,6 +922,8 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
     {
         current_proc -> _cpu_burst_timer += 1;
     }
+
+    CheckArrival(process_list, ready_queue);
 /*
     if(current_proc != NULL)
     {
@@ -937,7 +955,7 @@ int Step(s_type type, g_proc** ready_queue, g_proc** waiting_queue, g_proc** cur
 
     if(target == NULL)
     {
-        if(current_proc == NULL && waiting_queue_position <= 0 && ready_queue_position <= 0)
+        if(current_proc == NULL && waiting_queue_position <= 0 && ready_queue_position <= 0 && inserted_process_count >= process_count)
         {
             //printf("Debug: current process is NULL(%d, %d)\n", waiting_queue_position, ready_queue_position);
             gantt -> gantt_chart[gantt -> gantt_count - 1].end_time = current_time;
@@ -1241,11 +1259,14 @@ g_proc* GenerateRandomProcess(g_proc** process_list)
 	return proc;
 }
 
+
+
 int Init()
 {
     process_count = 0;
     current_time = 0;
     gantt_list_count = 0;
+    inserted_process_count = 0;
 
     rr_timer = 0;
     rr_tq = 0;
@@ -1261,6 +1282,8 @@ int Reset()
 	exit_reason = 0;
 	current_time = 0;
     rr_timer = 0;
+
+    inserted_process_count = 0;
 
     waiting_queue_position = 0;
     ready_queue_position = 0;
@@ -1474,10 +1497,10 @@ int Menu()
 					process_list[i] -> _io_burst_timer = 0;
 					process_list[i] -> _cpu_burst_timer = 0;
 					process_list[i] -> _waiting_time = 0;
-					InsertReadyQueue(ready_queue, process_list[i]);
+					//InsertReadyQueue(ready_queue, process_list[i]);
 				}
 
-          		while(Step(i, ready_queue, waiting_queue, current_proc_point, g_container) == 0) {}
+          		while(Step(i, ready_queue, waiting_queue, current_proc_point, g_container, process_list) == 0) {}
 
            		analysis_result[i] = g_container;
 
@@ -1541,14 +1564,14 @@ int Menu()
 					process_list[i] -> _io_burst_timer = 0;
 					process_list[i] -> _cpu_burst_timer = 0;
 					process_list[i] -> _waiting_time = 0;
-					InsertReadyQueue(ready_queue, process_list[i]);
+					//InsertReadyQueue(ready_queue, process_list[i]);
 				}
 
 		        do {
 		            if(i_flag != 1 && interaction_mode == 1){ i_flag = Interact(ready_queue, process_list);}
 					if(i_flag == -1){ break;}
 		        }
-		        while(Step(type, ready_queue, waiting_queue, current_proc_point, g_container) == 0);
+		        while(Step(type, ready_queue, waiting_queue, current_proc_point, g_container, process_list) == 0);
 
 				int prev_proc = -1;
 
